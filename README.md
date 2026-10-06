@@ -1,10 +1,64 @@
-# CSE2006-Database-GUI
+<div align="center">
 
-**Display Query Results** — a small Java desktop application that connects to a
-MySQL database with JDBC, runs an SQL query entered by the user and shows the
-result in a table that can be filtered, without running a second query.
+# Java SQL Query GUI
 
-This project was built for the **CSE2006 – Programming in Java** group activity.
+**A Java Swing + JDBC desktop application that runs SQL queries against MySQL
+and displays the results in a professional, filterable table.**
+
+*Course project — CSE2006: Programming in Java*
+
+[![Java](https://img.shields.io/badge/Java-17%2B-ED8B00?style=flat-square&logo=openjdk&logoColor=white)](https://www.oracle.com/java/)
+[![Swing](https://img.shields.io/badge/UI-Swing-007396?style=flat-square)](https://docs.oracle.com/javase/8/docs/api/javax/swing/package-summary.html)
+[![MySQL](https://img.shields.io/badge/MySQL-8.x-4479A1?style=flat-square&logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![JDBC](https://img.shields.io/badge/API-JDBC-007396?style=flat-square)](https://docs.oracle.com/en/java/javase/17/docs/api/java.sql/java/sql/package-summary.html)
+[![Maven](https://img.shields.io/badge/build-Maven-C71A36?style=flat-square&logo=apachemaven&logoColor=white)](https://maven.apache.org/)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Status](https://img.shields.io/badge/status-complete-brightgreen?style=flat-square)](#)
+
+**[Quick Start](#quick-start)** · **[Screenshots](#screenshots)** · **[Docs](#1-project-overview)**
+
+</div>
+
+---
+
+<img src="docs/screenshots/02-query-results.png" alt="Query results in the Java SQL Query GUI" width="820">
+
+---
+
+## Table of contents
+
+- [1. Project overview](#1-project-overview)
+- [2. Features](#2-features)
+- [3. Technologies](#3-technologies)
+- [4. Database schema](#4-database-schema)
+- [5. Requirements](#5-requirements)
+- [6. How to install MySQL](#6-how-to-install-mysql)
+- [7. How to create the database](#7-how-to-create-the-database)
+- [8. Configuration — DB_URL, DB_USER, DB_PASSWORD](#8-configuration--db_url-db_user-db_password)
+- [9. How to build with Maven](#9-how-to-build-with-maven)
+- [10. How to run from VS Code](#10-how-to-run-from-vs-code)
+- [11. How to run from the terminal](#11-how-to-run-from-the-terminal)
+- [12. Example SQL queries](#12-example-sql-queries)
+- [13. How filtering works](#13-how-filtering-works)
+- [14. Troubleshooting](#14-troubleshooting)
+- [Project structure](#project-structure)
+- [Screenshots](#screenshots)
+
+---
+
+## Quick start
+
+```bash
+git clone https://github.com/aasirjaffer13/java-sql-query-gui.git
+cd java-sql-query-gui
+
+mysql -u root -p < database/database.sql   # optional — the app also creates it itself
+mvn clean package
+mvn exec:java
+```
+
+That is all: the window **"Display Query Results - CSE2006"** opens,
+connects to MySQL and loads a pre-written join query ready to run.
 
 ---
 
@@ -63,12 +117,14 @@ The application opens with a window titled **"Display Query Results - CSE2006"**
 
 ## 3. Technologies
 
-* **Java 17** (source/target level; runs on JDK 17 – 26)
-* **Swing** (GUI: `JFrame`, `JTextArea`, `JTable`, `JTextField`, `JOptionPane`, `SwingWorker`)
-* **JDBC** (`java.sql`, MySQL Connector/J 8.4.0)
-* **MySQL** 8.x (tested with MySQL 8.4)
-* **Maven** 3.8+ (build, dependency management, `exec:java`, shaded jar)
-* **VS Code** + Extension Pack for Java (optional IDE)
+| Layer | Technology |
+|---|---|
+| Language | **Java 17** (source/target level; runs on JDK 17 – 26) |
+| GUI | **Swing** — `JFrame`, `JTextArea`, `JTable`, `JOptionPane`, `SwingWorker` |
+| Data access | **JDBC** — `java.sql` + MySQL Connector/J 8.4.0 |
+| Database | **MySQL** 8.x (tested with MySQL 8.4) |
+| Build | **Maven** 3.8+ (compiler, `exec:java`, shade plugins) |
+| IDE | **VS Code** + Extension Pack for Java (optional) |
 
 ---
 
@@ -173,7 +229,7 @@ SELECT COUNT(*) FROM authorISBN;-- 34
 
 ---
 
-## 8. How to configure DB_URL, DB_USER and DB_PASSWORD
+## 8. Configuration — DB_URL, DB_USER, DB_PASSWORD
 
 Configuration lives at the top of
 [`src/main/java/com/cse2006/databasegui/DatabaseConnection.java`](src/main/java/com/cse2006/databasegui/DatabaseConnection.java):
@@ -207,10 +263,6 @@ export DB_PASSWORD="MySecret123"
 mvn exec:java
 ```
 
-```powershell
-# Without environment variables, edit the constants in DatabaseConnection.java
-```
-
 > The password is never printed anywhere — the status bar only shows
 > `user -> database`.
 
@@ -219,13 +271,11 @@ mvn exec:java
 ## 9. How to build with Maven
 
 ```bash
-cd CSE2006-Database-GUI
 mvn clean package
 ```
 
 * Compiles all sources (Java 17), copies `database.sql` onto the classpath and
-  builds a **self-contained jar**:
-  `target/CSE2006-Database-GUI-1.0.0.jar`
+  builds a **self-contained jar**: `target/CSE2006-Database-GUI-1.0.0.jar`
 
 Run the shaded jar directly (MySQL driver included):
 
@@ -237,8 +287,8 @@ java -jar target/CSE2006-Database-GUI-1.0.0.jar
 
 ## 10. How to run from VS Code
 
-1. **File → Open Folder…** → select `CSE2006-Database-GUI`.
-2. Install the extension pack **Extension Pack for Java** (vscjava.vscode-java-pack).
+1. **File → Open Folder…** → select `java-sql-query-gui`.
+2. Install the extension pack **Extension Pack for Java** (`vscjava.vscode-java-pack`).
    Java 17+ must be installed (`java -version`).
 3. Wait for the project to finish importing (bottom-right progress).
 4. Make sure MySQL is running (section 6) — the schema is created automatically
@@ -253,15 +303,13 @@ java -jar target/CSE2006-Database-GUI-1.0.0.jar
    $env:DB_PASSWORD = "yourPassword"
    ```
 
-   (VS Code picks up the environment of the window it was started from, or put
-   `"-DDB_PASSWORD=yourPassword"` in the launch configuration's `vmArgs`.)
+   (or add `"-DDB_PASSWORD=yourPassword"` to `vmArgs` in the launch configuration).
 
 ---
 
-## 11. How to run from terminal
+## 11. How to run from the terminal
 
 ```bash
-cd CSE2006-Database-GUI
 mvn clean package
 mvn exec:java
 ```
@@ -361,11 +409,10 @@ status bar shows `Filter applied — 13 rows shown`.
 | `A table or column does not exist … Check the spelling` | Typo in the query, or the sample data was not loaded |
 | `You have an error in your SQL syntax` | The dialog shows MySQL's message — check the statement |
 | `Only read-only SELECT queries are allowed` | The app accepts `SELECT` statements only (by design) |
-| `mvn: command not found` | Maven not installed / not on `PATH` — section 5 |
+| `mvn: command not found` | Maven not installed / not on `PATH` → section 5 |
 | `java: command not found` or VS Code "no JDK" | Install a JDK 17+ and set `java.home` in VS Code settings |
 | `Public Key Retrieval is not allowed` | Keep `allowPublicKeyRetrieval=true` in `DB_URL` (already in the default) |
 | `Unable to load authentication plugin 'caching_sha2_password'` | Use MySQL Connector/J 8.x (already in `pom.xml`) |
-| Chinese/garbled characters in the table | Data is UTF-8; check that the connection URL keeps the default `characterEncoding=UTF-8` |
 | Port 3306 already in use | Another MySQL/MariaDB instance is running — stop it or change the port in `DB_URL` |
 
 ---
@@ -373,14 +420,15 @@ status bar shows `Filter applied — 13 rows shown`.
 ## Project structure
 
 ```
-CSE2006-Database-GUI/
+java-sql-query-gui/
 ├── pom.xml                         Maven build (compiler, exec, shade plugins)
 ├── README.md
+├── LICENSE                         MIT
 ├── .vscode/launch.json             VS Code run configuration
 ├── database/
 │   └── database.sql                CREATE DATABASE / tables / sample data
 ├── docs/
-│   └── screenshots/                Ready-made screenshots (see below)
+│   └── screenshots/                Report-ready screenshots
 └── src/main/java/com/cse2006/databasegui/
     ├── Main.java                   entry point, look & feel, launches MainFrame
     ├── DatabaseConnection.java     DB_URL / DB_USER / DB_PASSWORD + JDBC connections
@@ -403,9 +451,24 @@ CSE2006-Database-GUI/
 
 ---
 
-## Screenshots (for the report)
+## Screenshots
 
-The [`docs/screenshots/`](docs/screenshots) folder contains captured images:
+<table>
+  <tr>
+    <td align="center"><b>Query results — 34 rows</b><br><img src="docs/screenshots/02-query-results.png" width="400"></td>
+    <td align="center"><b>Filter: "Java" — 13 rows</b><br><img src="docs/screenshots/03-filter-java.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Example queries menu</b><br><img src="docs/screenshots/04-example-queries-menu.png" width="400"></td>
+    <td align="center"><b>Friendly error message</b><br><img src="docs/screenshots/05-error-blocked-statement.png" width="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>First start — schema created</b><br><img src="docs/screenshots/01-initial-window.png" width="400"></td>
+    <td align="center"><b>SQL syntax error</b><br><img src="docs/screenshots/06-error-sql-syntax.png" width="400"></td>
+  </tr>
+</table>
+
+All images live in [`docs/screenshots/`](docs/screenshots):
 
 | File | Shows |
 |---|---|
@@ -429,7 +492,8 @@ Suggested screenshots for your own PDF report:
 
 ---
 
-## License / notes
+<div align="center">
 
-Teaching project for CSE2006. ISBN values in `database.sql` are sample data.
-Never commit real database passwords.
+**[CSE2006 · Programming in Java]** · [MIT License](LICENSE)
+
+</div>
