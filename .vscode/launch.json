@@ -1,0 +1,11 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Run CSE2006 Database GUI",
+            "request": "launch",
+            "mainClass": "com.cse2006.databasegui.Main"
+        }
+    ]
+}

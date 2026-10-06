@@ -1,0 +1,29 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+dependency-reduced-pom.xml
+
+# Compiled
+*.class
+*.jar
+!lib/*.jar
+
+# IDE
+.idea/
+*.iml
+.settings/
+.classpath
+.project
+bin/
+out/
+
+# Logs / crash reports
+hs_err_pid*
+replay_pid*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
