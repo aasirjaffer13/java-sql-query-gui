@@ -46,7 +46,7 @@ and displays the results in a professional, filterable table.**
 
 ---
 
-## Quick start
+## Quick  start
 
 ```bash
 git clone https://github.com/aasirjaffer13/java-sql-query-gui.git
