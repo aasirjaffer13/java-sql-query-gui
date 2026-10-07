@@ -64,7 +64,7 @@ connects to MySQL and loads a pre-written join query ready to run.
 
 ## 1. Project overview
 
-The application opens with a window titled **"Display Query Results - CSE2006"**:
+The application starts with a simple desktop interface titled "SQL Query Results - CSE2006":
 
 ```
 +------------------------------------------------------------------+
@@ -376,8 +376,7 @@ that does not start with `SELECT`.
 
 ## 13. How filtering works
 
-1. The rows returned by the query are stored **once** in
-   `QueryResultTableModel`.
+1. After execution, the returned records are stored in QueryResultTableModel for displaying and filtering.
 2. The table uses a `TableRowSorter` (`MainFrame`).
 3. **Apply Filter** builds
 
