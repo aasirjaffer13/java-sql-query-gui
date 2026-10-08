@@ -5,14 +5,14 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 /**
- * Single place for the JDBC configuration and for opening connections.
+ * Holds the JDBC settings and opens database connections.
  *
- * <p>The settings can be overridden without changing the code. The order used
- * for every value is:</p>
+ * <p>Every value can be overridden without touching the code. The order used
+ * for each setting is:</p>
  * <ol>
  *   <li>JVM system property, e.g. {@code -DDB_USER=root}</li>
  *   <li>environment variable, e.g. {@code DB_PASSWORD=secret}</li>
- *   <li>the clearly marked default constant below</li>
+ *   <li>the default constant below</li>
  * </ol>
  *
  * <p>Supported keys: {@code DB_URL}, {@code DB_USER}, {@code DB_PASSWORD}.</p>
@@ -31,10 +31,10 @@ public final class DatabaseConnection {
     public static final String DEFAULT_DB_USER = "root";
 
     /**
-     * Default database password. It is empty because a fresh MySQL install
-     * created by {@code mysqld --initialize-insecure} has no root password.
+     * Default password. It is empty because a fresh MySQL install created by
+     * {@code mysqld --initialize-insecure} has no root password.
      *
-     * <p>Change this value locally or set the {@code DB_PASSWORD} environment
+     * <p>Change it locally or set the {@code DB_PASSWORD} environment
      * variable. Never commit a real password to version control.</p>
      */
     public static final String DEFAULT_DB_PASSWORD = "";
@@ -42,27 +42,26 @@ public final class DatabaseConnection {
     private DatabaseConnection() {
     }
 
-    /** @return the JDBC URL that is currently in use. */
+    /** @return the JDBC URL currently in use. */
     public static String getUrl() {
         return resolve("DB_URL", DEFAULT_DB_URL);
     }
 
-    /** @return the database user that is currently in use. */
+    /** @return the database user currently in use. */
     public static String getUser() {
         return resolve("DB_USER", DEFAULT_DB_USER);
     }
 
-    /** @return the database password that is currently in use. */
+    /** @return the database password currently in use. */
     public static String getPassword() {
         return resolve("DB_PASSWORD", DEFAULT_DB_PASSWORD);
     }
 
     /**
-     * Opens a new JDBC connection.
+     * Opens a new JDBC connection to the configured database.
+     * Callers close it, normally with try-with-resources.
      *
-     * <p>Callers must close it, normally with try-with-resources.</p>
-     *
-     * @return an open connection to the configured database
+     * @return an open connection
      * @throws SQLException if the URL, credentials or server are wrong
      */
     public static Connection getConnection() throws SQLException {
@@ -70,56 +69,68 @@ public final class DatabaseConnection {
     }
 
     /**
-     * JDBC URL of the MySQL server itself, i.e. the configured URL without
-     * the database name. Used to create the database when it is missing.
-     *
-     * @return server level JDBC URL (query parameters are preserved)
-     */
-    public static String getServerUrl() {
-        String url = getUrl();
-        int scheme = url.indexOf("://");
-        int pathStart = scheme < 0 ? -1 : url.indexOf('/', scheme + 3);
-        if (pathStart < 0) {
-            return url;
-        }
-        int query = url.indexOf('?', pathStart);
-        return url.substring(0, pathStart) + (query < 0 ? "" : url.substring(query));
-    }
-
-    /**
-     * @return the database name taken from the JDBC URL, or an empty string
-     *         if the URL does not contain one
+     * @return the database name from the JDBC URL, for example
+     *         {@code cse2006_library} from
+     *         {@code jdbc:mysql://localhost:3306/cse2006_library?...},
+     *         or an empty string when the URL contains none
      */
     public static String getDatabaseName() {
         String url = getUrl();
-        int scheme = url.indexOf("://");
-        int pathStart = scheme < 0 ? -1 : url.indexOf('/', scheme + 3);
-        if (pathStart < 0) {
+        int start = databaseStart(url);
+        if (start < 0) {
             return "";
         }
-        String path = url.substring(pathStart + 1);
-        int query = path.indexOf('?');
-        if (query >= 0) {
-            path = path.substring(0, query);
-        }
-        int slash = path.indexOf('/');
-        if (slash >= 0) {
-            path = path.substring(0, slash);
-        }
-        return path;
+        String name = url.substring(start);
+        int query = name.indexOf('?');
+        return query < 0 ? name : name.substring(0, query);
     }
 
     /**
-     * @return short, password-free description of the configuration, used in
-     *         the status bar, e.g. {@code root -> cse2006_library}
+     * @return the JDBC URL of the MySQL server itself, that is the configured
+     *         URL without the database name — needed to run CREATE DATABASE
+     */
+    public static String getServerUrl() {
+        String url = getUrl();
+        int start = databaseStart(url);
+        if (start < 0) {
+            return url;
+        }
+        String server = url.substring(0, start - 1);
+        int query = url.indexOf('?');
+        return query < 0 ? server : server + url.substring(query);
+    }
+
+    /**
+     * @return short, password-free description of the configuration for the
+     *         status bar, e.g. {@code root -> cse2006_library}
      */
     public static String describe() {
         return getUser() + " -> " + getDatabaseName();
     }
 
+    /**
+     * In a URL such as {@code jdbc:mysql://localhost:3306/cse2006_library}
+     * this finds the "/" that starts the database name.
+     *
+     * @return index of the first character of the database name, or {@code -1}
+     *         when the URL has no database name
+     */
+    private static int databaseStart(String url) {
+        int scheme = url.indexOf("://");
+        if (scheme < 0) {
+            return -1;
+        }
+        int slash = url.indexOf('/', scheme + 3);
+        return slash < 0 ? -1 : slash + 1;
+    }
+
+    /**
+     * Reads one setting: system property first, then environment variable,
+     * then the default constant.
+     */
     private static String resolve(String key, String fallback) {
         String value = System.getProperty(key);
-        if (value == null && System.getenv(key) != null) {
+        if (value == null) {
             value = System.getenv(key);
         }
         return value == null ? fallback : value;

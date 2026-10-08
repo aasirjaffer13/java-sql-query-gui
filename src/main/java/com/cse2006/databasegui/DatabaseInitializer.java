@@ -11,58 +11,51 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.StringJoiner;
 
 /**
- * Optional helper that makes sure the demonstration schema exists.
+ * Creates the sample schema when it is missing.
  *
- * <p>The SQL script {@code database/database.sql} is packaged as a class
- * resource by Maven, so this class can create the database, the tables and the
- * sample data when they are missing. The application does not depend on it:
- * if the schema is already there, nothing is executed at all.</p>
+ * <p>The script {@code database/database.sql} is packaged into the jar by
+ * Maven, so the application can create the database, the tables and the sample
+ * data by itself on first start. When everything already exists, nothing is
+ * executed at all.</p>
  */
 public final class DatabaseInitializer {
 
-    /** Tables that must exist before the application can be used. */
+    /** Tables the application needs. */
     private static final String[] REQUIRED_TABLES = { "authors", "titles", "authorISBN" };
 
-    /** Location of the script inside the built application. */
+    /** The packaged script, found on the classpath. */
     private static final String SCRIPT_RESOURCE = "/database.sql";
 
     private DatabaseInitializer() {
     }
 
     /**
-     * Checks whether all required tables are present in the configured
-     * database.
-     *
-     * <p>Returns {@code false} also when the database itself does not exist
-     * yet, so callers can simply run {@link #initializeIfMissing()}.</p>
+     * Checks whether the database exists and all required tables are present.
      *
      * @return {@code true} when every table exists
-     * @throws SQLException if the database server cannot be reached or the
-     *                      credentials are wrong
+     * @throws SQLException if the server cannot be reached or the login fails
      */
     public static boolean tablesExist() throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection()) {
             return tablesExist(connection);
         } catch (SQLException ex) {
-            if (isMissingDatabase(ex)) {
+            // "Unknown database" only means the database has not been created yet,
+            // which is not an error for the caller - it will create it next.
+            if (ex.getMessage() != null
+                    && ex.getMessage().toLowerCase(Locale.ROOT).contains("unknown database")) {
                 return false;
             }
             throw ex;
         }
     }
 
-    private static boolean isMissingDatabase(SQLException ex) {
-        return ex.getMessage() != null
-                && ex.getMessage().toLowerCase(Locale.ROOT).contains("unknown database");
-    }
-
     /**
-     * Creates the database and the schema when they are missing.
+     * Creates the database and the schema (with sample data) when they are
+     * missing.
      *
-     * @return {@code true} when the sample schema had to be created,
+     * @return {@code true} when the schema had to be created,
      *         {@code false} when everything already existed
      * @throws SQLException if the server or the script fails
      * @throws IOException  if the packaged script cannot be read
@@ -79,6 +72,10 @@ public final class DatabaseInitializer {
         }
     }
 
+    /**
+     * Connects to the server without a database (the configured database may
+     * not exist yet) and creates it if it is missing.
+     */
     private static void createDatabaseIfMissing() throws SQLException {
         String databaseName = DatabaseConnection.getDatabaseName();
         if (databaseName.isEmpty()) {
@@ -95,13 +92,15 @@ public final class DatabaseInitializer {
         }
     }
 
+    /** Asks MySQL how many of the required tables exist in this database. */
     private static boolean tablesExist(Connection connection) throws SQLException {
-        StringJoiner names = new StringJoiner(", ", "(", ")");
+        List<String> quotedTables = new ArrayList<>();
         for (String table : REQUIRED_TABLES) {
-            names.add("'" + table + "'");
+            quotedTables.add("'" + table + "'");
         }
         String sql = "SELECT COUNT(*) FROM information_schema.tables "
-                + "WHERE table_schema = DATABASE() AND table_name IN " + names;
+                + "WHERE table_schema = DATABASE() "
+                + "AND table_name IN (" + String.join(", ", quotedTables) + ")";
 
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(sql)) {
@@ -109,9 +108,9 @@ public final class DatabaseInitializer {
         }
     }
 
+    /** Executes the packaged script, one statement at a time. */
     private static void runScript(Connection connection) throws SQLException, IOException {
-        String script = readScript();
-        for (String sql : splitStatements(script)) {
+        for (String sql : splitStatements(readScript())) {
             try (Statement statement = connection.createStatement()) {
                 statement.execute(sql);
             }
@@ -129,8 +128,9 @@ public final class DatabaseInitializer {
     }
 
     /**
-     * Splits the script on semicolons and drops comments as well as the
-     * statements that are already handled by the application itself.
+     * JDBC executes one statement at a time, so the script is split on ";".
+     * Comment lines are dropped, and so are CREATE DATABASE and USE because
+     * the application handles those itself.
      */
     private static List<String> splitStatements(String script) {
         List<String> statements = new ArrayList<>();

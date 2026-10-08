@@ -1,5 +1,6 @@
 package com.cse2006.databasegui;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -9,14 +10,13 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.JTable;
 import javax.swing.KeyStroke;
 import javax.swing.RowFilter;
 import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
-import javax.swing.AbstractAction;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.MatteBorder;
@@ -42,18 +42,19 @@ import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 /**
- * The complete graphical user interface of the application: query editor,
- * result table, filter controls and status bar.
+ * The whole graphical user interface: query editor, result table, filter
+ * controls and status bar.
  *
- * <p>Query execution runs on a {@link SwingWorker} so that the window never
- * freezes while MySQL works.</p>
+ * <p>The query runs on a {@link SwingWorker} so the window never freezes while
+ * MySQL works. Filtering never touches the database - it only hides rows that
+ * are already in the table.</p>
  */
 public class MainFrame extends JFrame {
 
     private static final String WINDOW_TITLE = "Display Query Results - CSE2006";
 
-    /** Query that is loaded when the application starts (assignment example). */
-    private static final String DEFAULT_QUERY = """
+    /** Query loaded at start-up; also example 3 in the dropdown. */
+    private static final String QUERY_AUTHORS_AND_BOOKS = """
             SELECT firstName, lastName, title, editionNumber
             FROM authors
             INNER JOIN authorISBN
@@ -102,8 +103,24 @@ public class MainFrame extends JFrame {
     private JButton submitButton;
     private JComboBox<String> exampleComboBox;
     private JLabel statusLabel;
-    private DefaultTableCellRenderer stripedRenderer;
     private SwingWorker<QueryResultTableModel, Void> queryWorker;
+
+    /** Paints the table cells with alternating row colours. */
+    private final DefaultTableCellRenderer stripedRenderer = new DefaultTableCellRenderer() {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                boolean isSelected, boolean hasFocus, int row, int column) {
+            Component component = super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column);
+            if (!isSelected) {
+                component.setBackground(row % 2 == 0 ? Color.WHITE : ALTERNATING_ROW);
+            }
+            setHorizontalAlignment(value instanceof Number
+                    ? SwingConstants.RIGHT : SwingConstants.LEFT);
+            setBorder(new EmptyBorder(0, 8, 0, 8));
+            return component;
+        }
+    };
 
     public MainFrame() {
         super(WINDOW_TITLE);
@@ -114,7 +131,7 @@ public class MainFrame extends JFrame {
 
         buildUi();
         installKeyBindings();
-        queryArea.setText(DEFAULT_QUERY);
+        queryArea.setText(QUERY_AUTHORS_AND_BOOKS);
         queryArea.setCaretPosition(0);
         setStatus("Ready", TEXT_NORMAL);
         checkConnection();
@@ -192,22 +209,6 @@ public class MainFrame extends JFrame {
         resultTable.setSelectionForeground(Color.BLACK);
         resultTable.setRowSorter(rowSorter);
 
-        stripedRenderer = new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable table, Object value,
-                    boolean isSelected, boolean hasFocus, int row, int column) {
-                Component component = super.getTableCellRendererComponent(
-                        table, value, isSelected, hasFocus, row, column);
-                if (!isSelected) {
-                    component.setBackground(row % 2 == 0 ? Color.WHITE : ALTERNATING_ROW);
-                }
-                setHorizontalAlignment(value instanceof Number
-                        ? SwingConstants.RIGHT : SwingConstants.LEFT);
-                setBorder(new EmptyBorder(0, 8, 0, 8));
-                return component;
-            }
-        };
-
         styleTableHeader();
 
         JScrollPane scrollPane = new JScrollPane(resultTable);
@@ -218,12 +219,12 @@ public class MainFrame extends JFrame {
         return panel;
     }
 
+    /** Colours the column headers and stops them from being dragged around. */
     private void styleTableHeader() {
         JTableHeader header = resultTable.getTableHeader();
         header.setReorderingAllowed(false);
         header.setFont(BASE_FONT.deriveFont(Font.BOLD, 13f));
-        header.setPreferredSize(new Dimension(
-                header.getPreferredSize().width, 30));
+        header.setPreferredSize(new Dimension(header.getPreferredSize().width, 30));
         header.setDefaultRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
@@ -303,6 +304,7 @@ public class MainFrame extends JFrame {
                 TITLE_COLOR);
     }
 
+    /** Makes Ctrl+Enter submit the query, from anywhere in the window. */
     private void installKeyBindings() {
         getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
                 .put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, InputEvent.CTRL_DOWN_MASK),
@@ -327,13 +329,15 @@ public class MainFrame extends JFrame {
             return;
         }
         if (queryWorker != null && !queryWorker.isDone()) {
-            return;
+            return;   // a query is already running
         }
 
         submitButton.setEnabled(false);
         setBusy(true);
         setStatus("Executing query ...", TEXT_NORMAL);
 
+        // SwingWorker runs the query on a background thread and calls done()
+        // back on the Swing event dispatch thread when it finishes.
         queryWorker = new SwingWorker<QueryResultTableModel, Void>() {
             @Override
             protected QueryResultTableModel doInBackground() throws Exception {
@@ -345,41 +349,48 @@ public class MainFrame extends JFrame {
                 submitButton.setEnabled(true);
                 setBusy(false);
                 try {
-                    showResults(get());
+                    // Copy the finished result into the model the JTable shows.
+                    QueryResultTableModel result = get();
+                    tableModel.setResults(result.getColumnNames(), result.getRows());
+                    resetFilter();
+                    attachCellRenderers();
+                    sizeColumnsToContent();
                     setStatus("Query executed successfully — "
                             + tableModel.getRowCount() + " rows", TEXT_NORMAL);
                 } catch (InterruptedException ex) {
                     Thread.currentThread().interrupt();
                     setStatus("Query was interrupted", TEXT_ERROR);
                 } catch (ExecutionException ex) {
-                    handleFailure(ex.getCause() == null ? ex : ex.getCause());
-                } catch (java.util.concurrent.CancellationException ex) {
-                    setStatus("Query cancelled", TEXT_NORMAL);
+                    Throwable cause = ex.getCause();
+                    setStatus("Query failed", TEXT_ERROR);
+                    if (cause instanceof SQLException sqlException) {
+                        showError(controller.describeError(sqlException));
+                    } else {
+                        showError("Unexpected error: " + cause);
+                    }
                 }
             }
         };
         queryWorker.execute();
     }
 
-    private void showResults(QueryResultTableModel result) {
-        tableModel.setResults(result.getColumnNames(), result.getRows());
-        filterField.setText("");
-        rowSorter.setRowFilter(null);
-        applyColumnRendering();
-    }
-
     /**
-     * Attaches the striped cell renderer to every column and sizes the columns
-     * to their content.
+     * Puts the striped renderer on every column. Needed again after each
+     * query because a new result rebuilds all table columns.
      */
-    private void applyColumnRendering() {
+    private void attachCellRenderers() {
         TableColumnModel columns = resultTable.getColumnModel();
         for (int i = 0; i < columns.getColumnCount(); i++) {
             columns.getColumn(i).setCellRenderer(stripedRenderer);
         }
+    }
 
+    /** Makes every column wide enough for its longest value. */
+    private void sizeColumnsToContent() {
+        TableColumnModel columns = resultTable.getColumnModel();
         List<String> names = tableModel.getColumnNames();
         List<Object[]> rows = tableModel.getRows();
+
         for (int i = 0; i < columns.getColumnCount(); i++) {
             int longest = i < names.size() ? names.get(i).length() : 0;
             for (Object[] row : rows) {
@@ -390,19 +401,6 @@ public class MainFrame extends JFrame {
             int width = Math.min(Math.max(longest * 8 + 24, 100), 420);
             columns.getColumn(i).setPreferredWidth(width);
         }
-    }
-
-    private void handleFailure(Throwable cause) {
-        String message;
-        if (cause instanceof IllegalArgumentException) {
-            message = cause.getMessage();
-        } else if (cause instanceof SQLException sqlException) {
-            message = controller.describeError(sqlException);
-        } else {
-            message = "Unexpected error: " + cause;
-        }
-        setStatus("Query failed", TEXT_ERROR);
-        showError(message);
     }
 
     private void setBusy(boolean busy) {
@@ -418,13 +416,13 @@ public class MainFrame extends JFrame {
     }
 
     // ------------------------------------------------------------------
-    // Filtering
+    // Filtering (works on the displayed rows, never on the database)
     // ------------------------------------------------------------------
 
     /**
      * Builds the filter that keeps only rows containing the given text in one
-     * of their visible cells. Matching is case-insensitive and literal, so
-     * characters such as {@code +} or {@code (} are searched for as they are.
+     * of their cells. Matching is case-insensitive and literal, so characters
+     * such as {@code +} or {@code (} are searched for as they are.
      *
      * @param text the text entered in the filter field
      * @return the matching filter, or {@code null} when the text is empty
@@ -433,9 +431,11 @@ public class MainFrame extends JFrame {
         if (text == null || text.trim().isEmpty()) {
             return null;
         }
+        // (?i) = ignore case, Pattern.quote = treat the text as plain text.
         return RowFilter.regexFilter("(?i)" + Pattern.quote(text.trim()));
     }
 
+    /** Gives the sorter the filter; rows that do not match are hidden. */
     private void applyFilter() {
         String text = filterField.getText().trim();
         RowFilter<QueryResultTableModel, Integer> filter = createFilter(text);
@@ -452,16 +452,20 @@ public class MainFrame extends JFrame {
     }
 
     private void clearFilter() {
-        filterField.setText("");
-        rowSorter.setRowFilter(null);
+        resetFilter();
         setStatus("Filter cleared — " + resultTable.getRowCount()
                 + " rows shown", TEXT_NORMAL);
     }
 
-    private void clearResults() {
-        tableModel.clear();
+    /** Empty filter field + no row filter = every row visible again. */
+    private void resetFilter() {
         filterField.setText("");
         rowSorter.setRowFilter(null);
+    }
+
+    private void clearResults() {
+        tableModel.clear();
+        resetFilter();
         setStatus("Results cleared", TEXT_NORMAL);
     }
 
@@ -470,16 +474,12 @@ public class MainFrame extends JFrame {
     // ------------------------------------------------------------------
 
     private void loadSelectedExample() {
-        int index = exampleComboBox.getSelectedIndex();
-        if (index <= 0) {
-            return;
-        }
-        String sql = switch (index) {
+        String sql = switch (exampleComboBox.getSelectedIndex()) {
             case 1 -> QUERY_ALL_AUTHORS;
             case 2 -> QUERY_ALL_TITLES;
-            case 3 -> DEFAULT_QUERY;
+            case 3 -> QUERY_AUTHORS_AND_BOOKS;
             case 4 -> QUERY_JAVA_BOOKS;
-            default -> null;
+            default -> null;   // index 0 = "Select an example..."
         };
         if (sql == null) {
             return;
@@ -500,9 +500,9 @@ public class MainFrame extends JFrame {
     }
 
     /**
-     * Checks the database connection in the background. If the schema is
-     * missing it is created (with the sample data) by
-     * {@link DatabaseInitializer}.
+     * Checks the database connection in the background so the window opens
+     * immediately. If the schema is missing it is created, together with the
+     * sample data, by {@link DatabaseInitializer}.
      */
     private void checkConnection() {
         setStatus("Connecting to database ...", TEXT_NORMAL);

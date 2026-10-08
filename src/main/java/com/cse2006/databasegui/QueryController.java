@@ -5,47 +5,18 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /**
- * Executes the SQL that is typed into the GUI.
+ * Runs the SQL that is typed into the GUI.
  *
- * <p>This class owns everything that happens between the text area and the
- * table: validation of the submitted text, the JDBC call itself and the
- * translation of technical SQL exceptions into friendly messages.</p>
+ * <p>Between the text area and the table this class does three things:
+ * check that the submitted text is an allowed query, execute it with JDBC,
+ * and turn technical SQL exceptions into messages a student can act on.</p>
  *
- * <p>Only single {@code SELECT} statements are accepted, so the demonstration
- * cannot accidentally change or destroy data.</p>
+ * <p>Only single SELECT statements are accepted, so the demonstration cannot
+ * accidentally change or destroy data.</p>
  */
 public class QueryController {
-
-    /** A statement must start with SELECT (case-insensitive). */
-    private static final Pattern SELECT_STATEMENT =
-            Pattern.compile("\\A\\s*SELECT\\b", Pattern.CASE_INSENSITIVE);
-
-    /**
-     * Validates and executes a query.
-     *
-     * @param sql the SQL text entered by the user
-     * @return a table model holding all result rows
-     * @throws IllegalArgumentException if the SQL is empty or not allowed
-     * @throws SQLException             if the database rejects the query
-     */
-    public QueryResultTableModel runQuery(String sql) throws SQLException {
-        String validationError = validate(sql);
-        if (validationError != null) {
-            throw new IllegalArgumentException(validationError);
-        }
-
-        try (Connection connection = DatabaseConnection.getConnection();
-             Statement statement = connection.createStatement();
-             ResultSet resultSet = statement.executeQuery(sql)) {
-
-            QueryResultTableModel model = new QueryResultTableModel();
-            model.load(resultSet);
-            return model;
-        }
-    }
 
     /**
      * Checks whether the submitted text may be sent to the database.
@@ -69,13 +40,32 @@ public class QueryController {
         if (statement.contains(";")) {
             return "Please submit one SQL statement at a time.";
         }
-        if (!SELECT_STATEMENT.matcher(statement).find()) {
+        if (!statement.toUpperCase(Locale.ROOT).startsWith("SELECT")) {
             return "Only read-only SELECT queries are allowed in this "
                     + "demonstration application.\n"
-                    + "Statements such as DROP, DELETE, UPDATE, ALTER or "
-                    + "TRUNCATE are blocked.";
+                    + "Statements such as DROP, DELETE, UPDATE, ALTER or TRUNCATE are blocked.";
         }
         return null;
+    }
+
+    /**
+     * Executes the query. The JDBC flow is:
+     * connection → statement → result set → table model.
+     *
+     * @param sql a query that already passed {@link #validate(String)}
+     * @return a table model holding all result rows
+     * @throws SQLException if the database rejects the query
+     */
+    public QueryResultTableModel runQuery(String sql) throws SQLException {
+        // try-with-resources closes the connection, statement and result set.
+        try (Connection connection = DatabaseConnection.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(sql)) {
+
+            QueryResultTableModel model = new QueryResultTableModel();
+            model.load(resultSet);
+            return model;
+        }
     }
 
     /**
@@ -120,9 +110,9 @@ public class QueryController {
     }
 
     /**
-     * Removes {@code --}, {@code #} and {@code /* ... *}{@code /} comments that
-     * appear before the first SQL keyword so that a commented line does not
-     * make a valid query look invalid.
+     * Removes {@code --}, {@code #} and {@code /* ... *}{@code /} comments
+     * that appear before the first SQL keyword, so that a commented line does
+     * not make a valid query look invalid.
      */
     private String stripLeadingComments(String sql) {
         String rest = sql;

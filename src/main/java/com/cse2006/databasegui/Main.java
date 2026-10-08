@@ -4,17 +4,15 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
 /**
- * Application entry point for the CSE2006 database GUI demonstration.
+ * Entry point of the application.
  *
- * <p>Loads the look and feel of the operating system and then opens
- * {@link MainFrame} on the Swing event dispatch thread.</p>
+ * <p>Sets the operating system look and feel and then opens the main window
+ * on the Swing event dispatch thread.</p>
  */
-public final class Main {
-
-    private Main() {
-    }
+public class Main {
 
     public static void main(String[] args) {
+        // Makes the text look smoother on screen.
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
 
@@ -24,6 +22,7 @@ public final class Main {
             System.err.println("Could not load the system look and feel: " + ex.getMessage());
         }
 
+        // Swing windows must always be created on the event dispatch thread.
         SwingUtilities.invokeLater(() -> {
             MainFrame frame = new MainFrame();
             frame.setVisible(true);
